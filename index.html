@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#FF5A36">
+  <meta name="description" content="食べたものと、その後の体調変化、服薬・習慣を端末内へ記録するログ。">
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  <title>食事・体調ログ</title>
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" type="image/png" sizes="48x48" href="./favicon-v1-48.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon-v1-180.png">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <noscript>このアプリの利用にはJavaScriptが必要です。</noscript>
+  <div id="app" aria-live="polite">
+    <main class="startup-shell" aria-busy="true" aria-label="食事・体調ログを準備中">
+      <div class="startup-brand">
+        <img src="./icon-v1-192.png" alt="" width="56" height="56">
+        <div><p class="eyebrow">MEAL &amp; BODY JOURNAL</p><h1>食事・体調ログ</h1></div>
+      </div>
+      <div class="startup-progress" aria-hidden="true"><span></span></div>
+      <p>端末の記録を準備しています</p>
+    </main>
+  </div>
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+  <div id="modal-root"></div>
+  <input id="json-file-input" type="file" accept="application/json,.json" hidden>
+  <script type="module" src="./app.js"></script>
+</body>
+</html>

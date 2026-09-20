@@ -1,0 +1,10 @@
+{
+  "name": "food-health-log",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test schema.test.mjs",
+    "check": "node --check app.js && node --check db.js && node --check schema.js && node --check import-export.js && node --check sw.js"
+  }
+}
