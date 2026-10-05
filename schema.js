@@ -1,5 +1,5 @@
 export const SCHEMA_VERSION = 1;
-export const APP_VERSION = "1.0.0";
+export const APP_VERSION = "1.1.1";
 const MAX_COLLECTION_ITEMS = 100000;
 const MAX_TOTAL_ITEMS = 250000;
 
@@ -184,7 +184,7 @@ export function validateAndNormalizeImport(raw) {
     }
   }
 
-  const settings = [
+  const settings = raw.settings?.appSettings && typeof raw.settings.appSettings === "object" ? Object.entries(raw.settings.appSettings).map(([key,value]) => ({key,value})) : [
     { key: "schemaVersion", value: SCHEMA_VERSION },
     { key: "appVersion", value: APP_VERSION },
     { key: "symptomsSeeded", value: true },
@@ -238,3 +238,4 @@ export function buildBackupObject({ foods, choices, records, settings }) {
     settings: { systemTemplates, appSettings },
   };
 }
+

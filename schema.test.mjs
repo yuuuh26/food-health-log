@@ -77,3 +77,4 @@ test("GitHub Pages版バックアップを再び読み込める", () => {
   assert.equal(restored.counts.foodTemplates, 1);
   assert.equal(restored.snapshot.records[0].id, imported.snapshot.records[0].id);
 });
+

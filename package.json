@@ -1,10 +1,11 @@
 {
   "name": "food-health-log",
-  "version": "1.0.0",
+  "version": "1.1.1",
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test schema.test.mjs",
-    "check": "node --check app.js && node --check db.js && node --check schema.js && node --check import-export.js && node --check sw.js"
+    "test": "node --test schema.test.mjs cloud.test.mjs",
+    "check": "node --check app.js && node --check db.js && node --check schema.js && node --check import-export.js && node --check sw.js && node --check cloud.js && node --check cloud-snapshot.js && node --check cloudflare/worker.mjs"
   }
 }
+

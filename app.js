@@ -1,3 +1,5 @@
+import { mountCloudSettings, initializeCloud, CLOUD_URL } from "./cloud.js";
+import { readCloudState } from "./db.js";
 import { deleteOne, initializeFreshDatabase, loadSnapshot, putOne } from "./db.js";
 import { APP_VERSION, choiceKey, normalizeText } from "./schema.js";
 import { backupThenReplace, exportAllData, readAndValidateFile } from "./import-export.js";
@@ -106,7 +108,7 @@ function normalizedCategory(category) {
 
 function itemAmountLabel(item) {
   if (item.category === "野菜") return item.unit;
-  return `${item.amount}${item.category === "その他" ? "個" : item.unit}`;
+  return `${escapeHtml(item.amount)}${item.category === "その他" ? "個" : item.unit}`;
 }
 
 function showToast(message) {
@@ -194,6 +196,7 @@ function render() {
       ${renderFooter()}
     </main>`;
   renderImportModal();
+  mountCloudSettings();
 }
 
 function tabButton(tab, symbol, label) {
@@ -262,13 +265,13 @@ function renderFoodTemplateForm() {
 
 function renderMealItem(item) {
   if (item.category === "野菜") {
-    return `<div class="item-row vegetable-row"><div class="item-name"><strong>${escapeHtml(item.name)}</strong><button type="button" data-action="remove-meal-item" data-key="${item.key}">×</button></div><div class="vegetable-amount"><span>量</span><div>${["少", "中", "多"].map((level) => `<button type="button" class="${item.unit === level ? "active" : ""}" data-action="set-vegetable-level" data-key="${item.key}" data-level="${level}">${level}</button>`).join("")}</div></div></div>`;
+    return `<div class="item-row vegetable-row"><div class="item-name"><strong>${escapeHtml(item.name)}</strong><button type="button" data-action="remove-meal-item" data-key="${escapeHtml(item.key)}">×</button></div><div class="vegetable-amount"><span>量</span><div>${["少", "中", "多"].map((level) => `<button type="button" class="${item.unit === level ? "active" : ""}" data-action="set-vegetable-level" data-key="${escapeHtml(item.key)}" data-level="${level}">${level}</button>`).join("")}</div></div></div>`;
   }
-  const presets = item.category === "その他" ? `<div class="count-presets">${[1, 2, 3, 4, 5].map((count) => `<button type="button" class="${Number(item.amount) === count ? "active" : ""}" data-action="set-item-amount" data-key="${item.key}" data-amount="${count}">${count}</button>`).join("")}</div>` : "";
+  const presets = item.category === "その他" ? `<div class="count-presets">${[1, 2, 3, 4, 5].map((count) => `<button type="button" class="${Number(item.amount) === count ? "active" : ""}" data-action="set-item-amount" data-key="${escapeHtml(item.key)}" data-amount="${count}">${count}</button>`).join("")}</div>` : "";
   return `<div class="item-row ${item.category === "その他" ? "fixed-row" : "protein-row"}">
-    <div class="item-name"><strong>${escapeHtml(item.name)}</strong><button type="button" data-action="remove-meal-item" data-key="${item.key}">×</button></div>
-    <label><span>${item.category === "その他" ? "個数" : "量"}</span>${presets}<div class="unit-input"><input type="number" min="0" step="any" inputmode="decimal" value="${item.amount}" data-item-key="${item.key}" data-item-field="amount"><b>${item.category === "その他" ? "個" : "g"}</b></div><small class="baseline-hint">基準 ${item.baseAmount}${item.category === "その他" ? "個" : "g"} → P ${item.baseProtein}g</small></label>
-    <label><span>たんぱく質</span><div class="unit-input"><input type="number" min="0" step="any" inputmode="decimal" value="${item.protein}" data-item-key="${item.key}" data-item-field="protein"><b>g</b></div></label>
+    <div class="item-name"><strong>${escapeHtml(item.name)}</strong><button type="button" data-action="remove-meal-item" data-key="${escapeHtml(item.key)}">×</button></div>
+    <label><span>${item.category === "その他" ? "個数" : "量"}</span>${presets}<div class="unit-input"><input type="number" min="0" step="any" inputmode="decimal" value="${escapeHtml(item.amount)}" data-item-key="${escapeHtml(item.key)}" data-item-field="amount"><b>${item.category === "その他" ? "個" : "g"}</b></div><small class="baseline-hint">基準 ${escapeHtml(item.baseAmount)}${item.category === "その他" ? "個" : "g"} → P ${escapeHtml(item.baseProtein)}g</small></label>
+    <label><span>たんぱく質</span><div class="unit-input"><input type="number" min="0" step="any" inputmode="decimal" value="${escapeHtml(item.protein)}" data-item-key="${escapeHtml(item.key)}" data-item-field="protein"><b>g</b></div></label>
   </div>`;
 }
 
@@ -314,20 +317,20 @@ function renderHistory() {
   return `<div class="history-layout">
     <aside class="history-sidebar">
       <section class="card export-card"><div><p class="step">AI ANALYSIS</p><h2>まとめて出力</h2><p>食事と体調を同じ時系列でコピーします。別のAIに貼り付けて、数日後まで含めた関連を分析できます。</p></div><label>出力期間<select data-model="exportDays">${[["7","直近7日"],["14","直近14日"],["30","直近30日"],["50","直近50日"],["all","全期間"]].map(([value,label]) => `<option value="${value}" ${state.exportDays === value ? "selected" : ""}>${label}</option>`).join("")}</select></label><button class="primary-button" type="button" data-action="export-text">クリップボードへコピー<span>↗</span></button></section>
-      <section class="card backup-card"><p class="step blue">DATA TRANSFER</p><h2>データ移行・バックアップ</h2><p>Sites版の全データJSONを検査し、件数確認と2段階確認後に読み込みます。現在データがある場合は置換前に自動バックアップします。</p><button class="primary-button blue-button" type="button" data-action="select-json">Sites版のJSONを読み込む<span>↓</span></button><button class="subtle-button full" type="button" data-action="export-json">全データをJSONで保存</button></section>
-      <section class="card info-card"><p class="step">APP INFO</p><h2>アプリ情報</h2><dl><div><dt>バージョン</dt><dd>v${APP_VERSION}</dd></div><div><dt>保存状態</dt><dd>${escapeHtml(state.saveStatus)}</dd></div><div><dt>永続ストレージ</dt><dd>${escapeHtml(state.persistStatus)}</dd></div></dl>${state.persistStatus !== "有効" ? `<button class="subtle-button full" type="button" data-action="request-persist">永続保存を申請</button>` : ""}<div class="url-copy"><span>公開URL</span><code>https://yuuuh26.github.io/food-health-log/</code><button type="button" data-action="copy-url" data-url="https://yuuuh26.github.io/food-health-log/">コピー</button></div><div class="url-copy"><span>GitHub</span><code>https://github.com/yuuuh26/food-health-log</code><button type="button" data-action="copy-url" data-url="https://github.com/yuuuh26/food-health-log">コピー</button></div></section>
+      <section class="card backup-card"><p class="step blue">DATA TRANSFER</p><h2>データ移行・バックアップ</h2><p>全データJSONを検査し、件数確認と2段階確認後に読み込みます。現在データがある場合は置換前に自動バックアップします。</p><button class="primary-button blue-button" type="button" data-action="select-json">全データJSONを読み込む<span>↓</span></button><button class="subtle-button full" type="button" data-action="export-json">全データをJSONで保存</button></section>
+      <div id="cloud-settings"></div><section class="card info-card"><p class="step">APP INFO</p><h2>アプリ情報</h2><dl><div><dt>バージョン</dt><dd>v${APP_VERSION}</dd></div><div><dt>保存状態</dt><dd>${escapeHtml(state.saveStatus)}</dd></div><div><dt>永続ストレージ</dt><dd>${escapeHtml(state.persistStatus)}</dd></div></dl>${state.persistStatus !== "有効" ? `<button class="subtle-button full" type="button" data-action="request-persist">永続保存を申請</button>` : ""}<div class="url-copy"><span>公開URL</span><code>${escapeHtml(location.href.split("#")[0])}</code><button type="button" data-action="copy-url" data-url="${escapeHtml(location.href.split("#")[0])}">コピー</button></div><div class="url-copy"><span>GitHub</span><code>https://github.com/yuuuh26/food-health-log</code><button type="button" data-action="copy-url" data-url="https://github.com/yuuuh26/food-health-log">コピー</button></div></section>
     </aside>
-    <section class="timeline-section"><div class="history-heading"><div><p class="step">TIMELINE</p><h2>食事と体調の履歴</h2></div><span>${state.records.length}件</span></div>${state.records.length ? `<div class="timeline">${state.records.map((record) => renderRecord(record, cumulative)).join("")}</div>` : `<div class="empty-state"><b>まだ記録がありません</b><span>Sites版のJSONを読み込むか、新しい記録を追加してください。</span></div>`}</section>
+    <section class="timeline-section"><div class="history-heading"><div><p class="step">TIMELINE</p><h2>食事と体調の履歴</h2></div><span>${state.records.length}件</span></div>${state.records.length ? `<div class="timeline">${state.records.map((record) => renderRecord(record, cumulative)).join("")}</div>` : `<div class="empty-state"><b>まだ記録がありません</b><span>全データJSONを読み込むか、新しい記録を追加してください。</span></div>`}</section>
   </div>`;
 }
 
 function renderRecord(record, cumulative) {
   const kindLabel = record.kind === "meal" ? "食事" : record.kind === "health" ? "体調" : "服薬・習慣";
   let body = "";
-  if (record.kind === "meal") body = `<h3>食べたもの</h3>${record.items?.length ? `<p>${record.items.map((item) => `${escapeHtml(item.name)} ${escapeHtml(itemAmountLabel(item))}`).join("・")}</p>` : ""}<div class="record-meta"><b>今回 P ${record.protein}g</b><b class="protein-cumulative">当日累計 P ${cumulative.get(record.id) ?? record.protein}g</b></div>`;
-  if (record.kind === "health") body = `<h3>${record.overallScore ? `全体的な体調：${overallLabel(record.overallScore)}` : "体調メモ"}</h3>${record.temperature != null ? `<div class="record-meta"><b>体温 ${record.temperature}℃</b></div>` : ""}${record.symptoms?.length ? `<p>${record.symptoms.map((item) => `${escapeHtml(item.name)} 強さ${item.severity}/5`).join("・")}（5が最も強い）</p>` : ""}${record.stoolType ? `<div class="record-meta"><span>${escapeHtml(record.stoolType)}</span></div>` : ""}`;
+  if (record.kind === "meal") body = `<h3>食べたもの</h3>${record.items?.length ? `<p>${record.items.map((item) => `${escapeHtml(item.name)} ${escapeHtml(itemAmountLabel(item))}`).join("・")}</p>` : ""}<div class="record-meta"><b>今回 P ${escapeHtml(record.protein)}g</b><b class="protein-cumulative">当日累計 P ${escapeHtml(cumulative.get(record.id) ?? record.protein)}g</b></div>`;
+  if (record.kind === "health") body = `<h3>${record.overallScore ? `全体的な体調：${overallLabel(record.overallScore)}` : "体調メモ"}</h3>${record.temperature != null ? `<div class="record-meta"><b>体温 ${escapeHtml(record.temperature)}℃</b></div>` : ""}${record.symptoms?.length ? `<p>${record.symptoms.map((item) => `${escapeHtml(item.name)} 強さ${escapeHtml(item.severity)}/5`).join("・")}（5が最も強い）</p>` : ""}${record.stoolType ? `<div class="record-meta"><span>${escapeHtml(record.stoolType)}</span></div>` : ""}`;
   if (record.kind === "habit") body = `<h3>${record.items?.length ? "記録した項目" : "服薬・習慣メモ"}</h3>${record.items?.length ? `<p>${record.items.map((item) => escapeHtml(item.name)).join("・")}</p>` : ""}`;
-  return `<article class="record ${record.kind}"><div class="record-dot" aria-hidden="true"></div><div class="record-card"><div class="record-top"><span class="record-kind">${kindLabel}</span><time>${escapeHtml(displayDate(record.occurredAt))}</time><div class="record-actions"><button class="edit-record-button" type="button" data-action="edit-record" data-id="${record.id}">編集</button><button type="button" data-action="delete-record" data-id="${record.id}" aria-label="この記録を削除">×</button></div></div>${body}${record.notes ? `<blockquote>${escapeHtml(record.notes)}</blockquote>` : ""}</div></article>`;
+  return `<article class="record ${record.kind}"><div class="record-dot" aria-hidden="true"></div><div class="record-card"><div class="record-top"><span class="record-kind">${kindLabel}</span><time>${escapeHtml(displayDate(record.occurredAt))}</time><div class="record-actions"><button class="edit-record-button" type="button" data-action="edit-record" data-id="${escapeHtml(record.id)}">編集</button><button type="button" data-action="delete-record" data-id="${escapeHtml(record.id)}" aria-label="この記録を削除">×</button></div></div>${body}${record.notes ? `<blockquote>${escapeHtml(record.notes)}</blockquote>` : ""}</div></article>`;
 }
 
 function renderFooter() {
@@ -406,9 +409,11 @@ modalRoot.addEventListener("click", (event) => {
 });
 
 fileInput.addEventListener("change", async () => {
+  const expectedRevision = (await readCloudState()).meta.revision;
   const file = fileInput.files?.[0];
   if (!file) return;
   state.importCandidate = await readAndValidateFile(file);
+  state.importCandidate.expectedRevision = expectedRevision;
   state.importStage = 1;
   fileInput.value = "";
   renderImportModal();
@@ -633,13 +638,13 @@ async function exportText() {
   for (const record of records) {
     lines.push(`## ${displayDate(record.occurredAt)}｜${record.kind === "meal" ? "食事" : record.kind === "health" ? "体調" : "服薬・習慣"}`);
     if (record.kind === "meal") {
-      if (record.items?.length) { lines.push("食材:"); record.items.forEach((item) => lines.push(`- ${item.name}: ${itemAmountLabel(item)} / たんぱく質 ${item.protein}g`)); }
-      lines.push(`たんぱく質（今回）: ${record.protein}g`, `この時点の当日累計: ${cumulative.get(record.id) ?? record.protein}g`);
+      if (record.items?.length) { lines.push("食材:"); record.items.forEach((item) => lines.push(`- ${item.name}: ${itemAmountLabel(item)} / たんぱく質 ${escapeHtml(item.protein)}g`)); }
+      lines.push(`たんぱく質（今回）: ${escapeHtml(record.protein)}g`, `この時点の当日累計: ${escapeHtml(cumulative.get(record.id) ?? record.protein)}g`);
     }
     if (record.kind === "health") {
       lines.push(`全体的な体調: ${overallLabel(record.overallScore)}`);
-      if (record.temperature != null) lines.push(`体温: ${record.temperature}℃`);
-      if (record.symptoms?.length) lines.push(`症状の強さ: ${record.symptoms.map((item) => `${item.name}（${item.severity}/5）`).join("、")}`);
+      if (record.temperature != null) lines.push(`体温: ${escapeHtml(record.temperature)}℃`);
+      if (record.symptoms?.length) lines.push(`症状の強さ: ${record.symptoms.map((item) => `${item.name}（${escapeHtml(item.severity)}/5）`).join("、")}`);
       if (record.stoolType) lines.push(`便の状態: ${record.stoolType}`);
     }
     if (record.kind === "habit" && record.items?.length) lines.push(`記録項目: ${record.items.map((item) => item.name).join("、")}`);
@@ -680,6 +685,7 @@ async function initialize() {
     await updatePersistStatus();
     state.saveStatus = "端末から表示中";
     render();
+    void initializeCloud().catch(console.error);
     if ("serviceWorker" in navigator) navigator.serviceWorker.register("./sw.js", { updateViaCache: "none" }).catch(console.error);
   } catch (error) {
     console.error(error);
@@ -688,3 +694,6 @@ async function initialize() {
 }
 
 void initialize();
+
+
+window.addEventListener("food-health-restored", async () => { await reloadData(); state.meal=freshMealDraft(); state.health=freshHealthDraft(); state.habit=freshHabitDraft(); render(); showToast("クラウド履歴を復元しました"); });

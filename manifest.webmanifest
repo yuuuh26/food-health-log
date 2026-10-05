@@ -1,11 +1,11 @@
 {
-  "id": "/food-health-log/",
+  "id": "./",
   "name": "食事・体調ログ",
   "short_name": "食事・体調",
   "description": "食事・体調・服薬・習慣を端末内へ記録する個人用ログ",
   "lang": "ja",
-  "start_url": "/food-health-log/",
-  "scope": "/food-health-log/",
+  "start_url": "./",
+  "scope": "./",
   "display": "standalone",
   "orientation": "portrait-primary",
   "theme_color": "#FF5A36",
@@ -17,3 +17,4 @@
     { "src": "./icon-v1-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ]
 }
+

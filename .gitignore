@@ -1,0 +1,5 @@
+cloudflare/assets.mjs
+*-recovery-key.txt
+*key-sha*
+.env*
+node_modules/

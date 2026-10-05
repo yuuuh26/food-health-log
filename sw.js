@@ -1,4 +1,4 @@
-const CACHE_NAME = "food-health-log-v1.0.0";
+const CACHE_NAME = "food-health-log-v1.1.1";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -6,6 +6,8 @@ const APP_SHELL = [
   "./manifest.webmanifest",
   "./app.js",
   "./db.js",
+  "./cloud.js",
+  "./cloud-snapshot.js",
   "./schema.js",
   "./import-export.js",
   "./icon-v1-192.png",
@@ -31,7 +33,9 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
   const requestUrl = new URL(event.request.url);
-  if (requestUrl.origin !== self.location.origin) return;
+  if (requestUrl.origin !== self.location.origin || requestUrl.pathname.startsWith("/v1/")) return;
+  const allowed = new Set(APP_SHELL.map(p => new URL(p, self.location.href).href));
+  if (!allowed.has(requestUrl.href)) return;
   event.respondWith(
     caches.match(event.request).then((cached) => cached || fetch(event.request).then((response) => {
       if (!response || response.status !== 200) return response;
@@ -41,3 +45,4 @@ self.addEventListener("fetch", (event) => {
     }).catch(() => caches.match("./index.html")))
   );
 });
+

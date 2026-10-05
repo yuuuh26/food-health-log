@@ -285,3 +285,18 @@ footer button { border: 0; background: transparent; color: var(--green); font-we
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
+
+
+.cloud-card summary {cursor:pointer;padding:8px 0;}
+.cloud-connect {display:grid;gap:12px;margin:16px 0;}
+.cloud-connect label {display:grid;gap:6px;}
+.cloud-connect input {width:100%;padding:12px;border:1px solid #ddd;border-radius:10px;box-sizing:border-box;}
+.cloud-buttons {display:grid;gap:10px;}
+.cloud-card dd {overflow-wrap:anywhere;}
+
+.cloud-card > p {color:var(--muted);font-size:12px;line-height:1.7;}
+.cloud-card dl {font-size:12px;}
+.cloud-card dl div {display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid var(--line);}
+.cloud-card dt {color:var(--muted);flex-shrink:0;}
+.cloud-card dd {margin:0;text-align:right;}
+.cloud-connect label {font-size:12px;font-weight:700;}

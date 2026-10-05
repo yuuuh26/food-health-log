@@ -46,5 +46,6 @@ export async function backupThenReplace(candidate, hasCurrentData) {
     const current = await loadSnapshot();
     downloadJson(buildBackupObject(current), backupFilename());
   }
-  await replaceAllData(candidate.snapshot);
+  await replaceAllData(candidate.snapshot, candidate.expectedRevision);
 }
+

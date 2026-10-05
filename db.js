@@ -1,7 +1,7 @@
 import { APP_VERSION, SCHEMA_VERSION, choiceKey } from "./schema.js";
 
 const DB_NAME = "food-health-log-local-v1";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const STORES = ["foodTemplates", "choiceTemplates", "records", "settings"];
 
 const DEFAULT_SYMPTOMS = [
@@ -45,6 +45,7 @@ export function openDatabase() {
         store.createIndex("kind", "kind", { unique: false });
         store.createIndex("occurredAt", "occurredAt", { unique: false });
       }
+      if (!db.objectStoreNames.contains("cloud")) db.createObjectStore("cloud");
       if (!db.objectStoreNames.contains("settings")) db.createObjectStore("settings", { keyPath: "key" });
     };
     request.onsuccess = () => resolve(request.result);
@@ -59,47 +60,55 @@ export async function getAll(storeName) {
   return requestResult(db.transaction(storeName, "readonly").objectStore(storeName).getAll());
 }
 
+export const cloudDefaults = () => ({ revision: 0, sentRevision: 0, allowUpload: false, lastSaved: null, inFlight: null });
+function markChanged(transaction) {
+  const store = transaction.objectStore("cloud"), request = store.get("meta");
+  request.onsuccess = () => { const meta = request.result || cloudDefaults(); meta.revision++; store.put(meta, "meta"); };
+}
+function notifyChanged() { window.dispatchEvent(new Event("food-health-change")); }
 export async function putOne(storeName, value) {
   const db = await openDatabase();
-  const transaction = db.transaction(storeName, "readwrite");
-  transaction.objectStore(storeName).put(value);
-  await transactionDone(transaction);
-  return value;
+  const transaction = db.transaction([storeName, "cloud"], "readwrite");
+  const store = transaction.objectStore(storeName), old = store.get(value[storeName === "settings" ? "key" : "id"]);
+  old.onsuccess = () => { if (JSON.stringify(old.result) !== JSON.stringify(value)) { store.put(value); if (!(storeName === "settings" && value.key === "lastBackupAt")) markChanged(transaction); } };
+  await transactionDone(transaction); notifyChanged(); return value;
 }
-
 export async function deleteOne(storeName, id) {
-  const db = await openDatabase();
-  const transaction = db.transaction(storeName, "readwrite");
-  transaction.objectStore(storeName).delete(id);
+  const db = await openDatabase(), transaction = db.transaction([storeName, "cloud"], "readwrite");
+  const store = transaction.objectStore(storeName), old = store.get(id);
+  old.onsuccess = () => { if (old.result !== undefined) { store.delete(id); markChanged(transaction); } };
+  await transactionDone(transaction); notifyChanged();
+}
+export async function readCloudState() {
+  const db = await openDatabase(), transaction = db.transaction([...STORES, "cloud"], "readonly");
+  const requests = STORES.map(name => requestResult(transaction.objectStore(name).getAll()));
+  const [foods, choices, records, settings, meta] = await Promise.all([...requests, requestResult(transaction.objectStore("cloud").get("meta"))]);
+  return { snapshot: { foods, choices, records: records.sort((a,b)=>new Date(b.occurredAt)-new Date(a.occurredAt)), settings }, meta: meta || cloudDefaults() };
+}
+export async function loadSnapshot() { return (await readCloudState()).snapshot; }
+export async function updateCloudMeta(update) {
+  const db = await openDatabase(), transaction = db.transaction("cloud", "readwrite"), store = transaction.objectStore("cloud"), request = store.get("meta");
+  request.onsuccess = () => store.put(update(request.result || cloudDefaults()), "meta");
   await transactionDone(transaction);
 }
-
-export async function loadSnapshot() {
-  const [foods, choices, records, settings] = await Promise.all(STORES.map(getAll));
-  return {
-    foods,
-    choices,
-    records: records.sort((a, b) => new Date(b.occurredAt) - new Date(a.occurredAt)),
-    settings,
+export async function replaceAllData(snapshot, expectedRevision) {
+  const db = await openDatabase(), transaction = db.transaction([...STORES, "cloud"], "readwrite");
+  let failure;
+  const metaStore = transaction.objectStore("cloud"), request = metaStore.get("meta");
+  request.onsuccess = () => {
+    const meta = request.result || cloudDefaults();
+    if (expectedRevision !== undefined && expectedRevision !== meta.revision) { failure = Error("確認中に別の画面で更新されました。もう一度内容を確認してください"); transaction.abort(); return; }
+    const safety = {}, pending = STORES.map(name => { const r = transaction.objectStore(name).getAll(); r.onsuccess = () => { safety[name] = r.result; if (Object.keys(safety).length !== STORES.length) return;
+      metaStore.put({ snapshot: { foods:safety.foodTemplates, choices:safety.choiceTemplates, records:safety.records, settings:safety.settings }, meta, savedAt:new Date().toISOString() }, "restoreSafety");
+      const sources = { foodTemplates:snapshot.foods, choiceTemplates:snapshot.choices, records:snapshot.records, settings:snapshot.settings };
+      for (const name of STORES) { const store = transaction.objectStore(name); store.clear(); for (const item of sources[name]) store.put(item); }
+      metaStore.put({ ...meta, revision:meta.revision+1, inFlight:null }, "meta");
+    }; return r; });
   };
+  try { await transactionDone(transaction); } catch (error) { throw failure || error; }
+  notifyChanged();
 }
-
-export async function replaceAllData(snapshot) {
-  const db = await openDatabase();
-  const transaction = db.transaction(STORES, "readwrite");
-  const sources = {
-    foodTemplates: snapshot.foods,
-    choiceTemplates: snapshot.choices,
-    records: snapshot.records,
-    settings: snapshot.settings,
-  };
-  for (const storeName of STORES) {
-    const store = transaction.objectStore(storeName);
-    store.clear();
-    for (const value of sources[storeName]) store.put(value);
-  }
-  await transactionDone(transaction);
-}
+export async function getRestoreSafety() { const db = await openDatabase(); return requestResult(db.transaction("cloud", "readonly").objectStore("cloud").get("restoreSafety")); }
 
 export async function initializeFreshDatabase() {
   const settings = await getAll("settings");
@@ -141,3 +150,4 @@ export async function countData(snapshot) {
     total: source.foods.length + source.choices.length + source.records.length + source.settings.length,
   };
 }
+
